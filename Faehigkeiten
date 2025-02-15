@@ -1,0 +1,143 @@
+class Faehigkeiten:
+    def __init__(self, skill_name):
+        self.skill_name = skill_name
+        self.verwendet = False
+        self.temp_disabled_bomben = set()
+        self.temp_markierungen = set()
+        self.temp_xray_bomben = set()  # Initialisierung für X-Ray
+
+
+    def faehigkeit_verfuegbar(self):
+        """Prüft, ob die Fähigkeit nutzbar ist."""
+        return not self.verwendet
+
+    def nutze_faehigkeit(self):
+        """Aktiviert die Fähigkeit, wenn verfügbar."""
+        if self.faehigkeit_verfuegbar():
+            self.verwendet = True
+            return True
+        return False
+
+    def ausfuehren_faehigkeit(self, spielfeld, buttons, root):
+        """Führt die Fähigkeit aus."""
+        if not self.nutze_faehigkeit():
+            return False
+
+        if self.skill_name == "X-Ray":
+            self._xray(spielfeld, buttons, root)
+        elif self.skill_name == "Bomb Defuser":
+            self._bomb_defuser(spielfeld, buttons, root)
+        elif self.skill_name == "Solver":
+            self._solver(spielfeld, buttons)
+
+        return True
+
+    def _xray(self, spielfeld, buttons, root):
+        """
+        Aktiviert die X-Ray-Fähigkeit: Zeigt Bombenpositionen für 5 Sekunden an.
+        Markierte Felder bleiben als Flagge sichtbar.
+        """
+        self.temp_xray_bomben = set()  # Speichert temporär die Bombenpositionen
+
+        for zeile in range(len(spielfeld.spielfeld)):
+            for spalte in range(len(spielfeld.spielfeld[0])):
+                if spielfeld.spielfeld[zeile][spalte] == -1:  # Bombe gefunden
+                    self.temp_xray_bomben.add((zeile, spalte))
+                    # Wenn das Feld nicht markiert ist, als Bombe anzeigen
+                    if spielfeld.spieler_sicht[zeile][spalte] != "F":
+                        buttons[zeile][spalte].config(bg="red", text="B")
+
+        # Rücksetzen nach 5 Sekunden
+        root.after(5000, lambda: self._reset_xray_display(spielfeld, buttons))
+
+    def _reset_xray_display(self, spielfeld, buttons):
+        """
+        Setzt die Anzeige der X-Ray-Bomben zurück.
+        Markierte Felder bleiben als Flagge sichtbar.
+        """
+        for zeile, spalte in list(self.temp_xray_bomben):
+            status = spielfeld.get_feld_status(zeile, spalte)
+            button = buttons[zeile][spalte]
+
+            # Zustand zurücksetzen
+            if status == "F":  # Wenn das Feld als Flagge markiert ist
+                button.config(bg="red", text="F", fg="white")
+            elif status == "_":  # Geschlossenes Feld
+                button.config(bg="SystemButtonFace", text="")
+            elif status == "B":  # Aufgedeckte Bombe (sollte bleiben)
+                button.config(bg="red", text="B")
+            else:  # Aufgedecktes Feld
+                button.config(bg="#dddddd", text=status, fg="black")
+
+        # Liste der X-Ray-Bomben leeren
+        self.temp_xray_bomben.clear()
+
+
+    def _bomb_defuser(self, spielfeld, buttons, root, update_flaggen_count):
+        """
+        Aktiviert die Bomb-Defuser-Fähigkeit:
+        - Deaktiviert Bomben, sodass sie beim Anklicken wie normale Felder markiert werden können.
+        - Diese Funktion hält 10 Sekunden lang an und wird danach automatisch zurückgesetzt.
+        """
+
+        def on_click_safe(zeile, spalte):
+            """
+            Ruft einfach die 'markieren'-Methode der GUI auf, um das Bombenfeld wie gewohnt zu markieren.
+            """
+            if (zeile, spalte) in spielfeld.deaktivierte_bomben:
+                # Nutze die bestehende Markieren-Methode aus der GUI
+                buttons[zeile][spalte].event_generate("<Button-3>")  # Simuliere einen Rechtsklick
+
+        # Klick-Logik für deaktivierte Bomben setzen
+        for zeile in range(len(spielfeld.spielfeld)):
+            for spalte in range(len(spielfeld.spielfeld[0])):
+                if spielfeld.spielfeld[zeile][spalte] == -1:
+                    spielfeld.deaktivierte_bomben.add((zeile, spalte))
+                    buttons[zeile][spalte].config(command=lambda z=zeile, s=spalte: on_click_safe(z, s))
+
+        def bomb_defuser_reset():
+            self._reset_disabled_bomben(spielfeld, buttons, update_flaggen_count)
+
+        root.after(10000, bomb_defuser_reset)
+
+    def _reset_disabled_bomben(self, spielfeld, buttons, update_flaggen_count):
+
+        for zeile, spalte in list(spielfeld.deaktivierte_bomben):
+            buttons[zeile][spalte].config(
+                text="",
+                bg="SystemButtonFace",
+                state="normal",
+                command=lambda z=zeile, s=spalte: spielfeld.aufdecken(z, s)
+            )
+
+        spielfeld.deaktivierte_bomben.clear()
+        update_flaggen_count()
+
+    def _solver(self, spielfeld, buttons, mouse_position):
+        """
+        Automatisiert das Lösen eines Spielfeldbereichs:
+        - Markiert Bombenfelder.
+        - Deckt sichere Felder auf.
+        """
+
+        zeilen = len(spielfeld.spielfeld)
+        spalten = len(spielfeld.spielfeld[0])
+        maus_zeile, maus_spalte = mouse_position
+        start_zeile, end_zeile = max(0, maus_zeile - 2), min(zeilen, maus_zeile + 3)
+        start_spalte, end_spalte = max(0, maus_spalte - 2), min(spalten, maus_spalte + 3)
+
+        for zeile in range(start_zeile, end_zeile):
+            for spalte in range(start_spalte, end_spalte):
+                feldwert = spielfeld.spielfeld[zeile][spalte]
+                if feldwert == -1 and spielfeld.spieler_sicht[zeile][spalte] != "F":
+                    spielfeld.markieren(zeile, spalte)
+                elif feldwert != -1 and spielfeld.spieler_sicht[zeile][spalte] == "_":
+                    spielfeld.aufdecken(zeile, spalte)
+
+
+
+
+
+
+
+
