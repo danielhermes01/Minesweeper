@@ -1,0 +1,143 @@
+from Spielfeld import Spielfeld
+
+class TestErkenne5050:
+    @staticmethod
+    def test_5050_situation_erkannt():
+        print("Teste 50-50-Situation erkannt...")
+        spielfeld = Spielfeld(3, 3, 2)
+        spielfeld.spielfeld = [
+            [1, -1, 0],
+            [0, 2, 0],
+            [0, -1, 1],
+        ]
+        spielfeld.spieler_sicht = [
+            ["1", "_", "_"],
+            ["_", "2", "_"],
+            ["_", "_", "_"],
+        ]
+
+        print("Erwartete Ausgabe: 50-50-Situation erkannt zwischen (1, 0) und (1, 2)")
+        spielfeld.erkenne_5050_situationen()
+
+    @staticmethod
+    def test_keine_5050_situation():
+        print("Teste keine 50-50-Situation...")
+        spielfeld = Spielfeld(3, 3, 1)
+        spielfeld.spielfeld = [
+            [1, 0, 0],
+            [0, -1, 0],
+            [0, 0, 1],
+        ]
+        spielfeld.spieler_sicht = [
+            ["1", "_", "_"],
+            ["_", "_", "_"],
+            ["_", "_", "_"],
+        ]
+
+        print("Erwartete Ausgabe: Keine 50-50-Situation erkannt.")
+        spielfeld.erkenne_5050_situationen()
+
+    @staticmethod
+    def test_mehrere_5050_situationen():
+        print("Teste mehrere 50-50-Situationen...")
+        spielfeld = Spielfeld(3, 3, 3)
+        spielfeld.spielfeld = [
+            [1, -1, 1],
+            [-1, 2, -1],
+            [1, -1, 1],
+        ]
+        spielfeld.spieler_sicht = [
+            ["1", "_", "1"],
+            ["_", "2", "_"],
+            ["_", "_", "_"],
+        ]
+
+        print("Erwartete Ausgaben: 50-50-Situationen zwischen:")
+        print("- (0, 1) und (2, 1)")
+        print("- (1, 0) und (1, 2)")
+        spielfeld.erkenne_5050_situationen()
+
+    @staticmethod
+    def test_randsituation():
+        print("Teste Randbedingung...")
+        spielfeld = Spielfeld(3, 3, 1)
+        spielfeld.spielfeld = [
+            [1, -1, 0],
+            [0, 1, 0],
+            [0, 0, 0],
+        ]
+        spielfeld.spieler_sicht = [
+            ["1", "_", "_"],
+            ["_", "1", "_"],
+            ["_", "_", "_"],
+        ]
+
+        print("Erwartete Ausgabe: 50-50-Situation erkannt zwischen (0, 1) und (1, 0)")
+        spielfeld.erkenne_5050_situationen()
+
+    @staticmethod
+    def test_komplexes_feld():
+        print("Teste komplexes Feld...")
+        spielfeld = Spielfeld(4, 4, 4)
+        spielfeld.spielfeld = [
+            [1, -1, 1, 0],
+            [-1, 2, -1, 1],
+            [1, -1, 2, -1],
+            [0, 1, -1, 1],
+        ]
+        spielfeld.spieler_sicht = [
+            ["1", "_", "1", "_"],
+            ["_", "2", "_", "_"],
+            ["_", "_", "2", "_"],
+            ["_", "_", "_", "_"],
+        ]
+
+        print("Erwartete Ausgaben: Mehrere 50-50-Situationen erkannt.")
+        spielfeld.erkenne_5050_situationen()
+
+    @staticmethod
+    def test_bild_situation():
+        print("Teste 50-50-Situation aus dem Bild...")
+        spielfeld = Spielfeld(10, 10, 10)
+        spielfeld.spielfeld = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, -1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 1, 2, 2, 1, 0, 0, 0, 0, 0],
+            [0, 0, 1, -1, 2, 1, 0, 0, 0, 0],
+            [0, 0, 1, 2, -1, 2, 1, 0, 0, 0],
+            [0, 0, 0, 1, 2, 3, -1, 1, 0, 0],
+            [0, 0, 0, 0, 1, -1, 3, 2, 1, 0],
+            [0, 0, 0, 0, 1, 2, -1, 3, -1, 1],
+            [0, 0, 0, 0, 0, 1, 2, -1, 3, 1],
+            [0, 0, 0, 0, 0, 0, 1, 2, -1, 1],
+        ]
+        spielfeld.spieler_sicht = [
+            ["x", "x", "x", "x", "x", "x", "x", "x", "x", "x"],
+            ["x", "1", "F", "1", "x", "x", "x", "x", "x", "x"],
+            ["x", "1", "2", "2", "1", "x", "x", "x", "x", "x"],
+            ["x", "x", "1", "F", "2", "1", "x", "x", "x", "x"],
+            ["x", "x", "1", "2", "F", "2", "1", "x", "x", "x"],
+            ["x", "x", "x", "1", "2", "3", "F", "1", "x", "x"],
+            ["x", "x", "x", "x", "1", "F", "3", "2", "1", "x"],
+            ["x", "x", "x", "x", "1", "2", "F", "3", "F", "1"],
+            ["x", "x", "x", "x", "x", "1", "2", "F", "3", "1"],
+            ["x", "x", "x", "x", "x", "x", "1", "2", "F", "1"],
+        ]
+
+        print("Erwartete Ausgaben: 50-50-Situation erkannt.")
+        spielfeld.erkenne_5050_situationen()
+
+if __name__ == "__main__":
+    print("Starte Tests...")
+    TestErkenne5050.test_5050_situation_erkannt()
+    print()
+    TestErkenne5050.test_keine_5050_situation()
+    print()
+    TestErkenne5050.test_mehrere_5050_situationen()
+    print()
+    TestErkenne5050.test_randsituation()
+    print()
+    TestErkenne5050.test_komplexes_feld()
+    print()
+    TestErkenne5050.test_bild_situation()
+    print("Tests abgeschlossen.")
