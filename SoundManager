@@ -1,0 +1,97 @@
+import os
+import pygame
+import sys
+def get_resource_path(relative_path):
+    """Findet den korrekten Pfad für Ressourcen, abhängig davon, ob es sich um eine .exe oder ein Skript handelt."""
+    if hasattr(sys, '_MEIPASS'):
+        # Wenn als .exe ausgeführt
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+class SoundManager:
+    def __init__(self):
+        pygame.mixer.init()
+        self.sounds = {}
+        self.music = None
+        self.music_playlist = [
+            get_resource_path("musik/song1.mp3"),
+            get_resource_path("musik/song2.mp3"),
+            get_resource_path("musik/song3.mp3"),
+            get_resource_path("musik/song4.mp3")
+        ]
+
+        self.current_track_index=0
+
+        self.default_volume = 0.25
+        pygame.mixer.music.set_volume(self.default_volume * 0.5)
+
+        sound_folder = get_resource_path("sounds")
+        self.lade_sounds(sound_folder)
+
+    def lade_playlist(self, musik_ordner):
+        """Lädt alle Musikdateien aus einem Ordner in die Playlist."""
+        try:
+            self.music_playlist = [
+                os.path.join(musik_ordner, file) for file in os.listdir(musik_ordner) if file.endswith((".mp3", ".wav"))
+            ]
+            if not self.music_playlist:
+                print("Keine Musikdateien im Ordner gefunden.")
+        except Exception as e:
+            print(f"Fehler beim Laden der Playlist: {e}")
+
+    def spiele_musik(self, loop=False):
+        """Spielt den aktuellen Track ab, falls keine Musik läuft."""
+        if pygame.mixer.music.get_busy():
+            print("Musik läuft bereits.")
+            return
+        if self.music_playlist:
+            current_track = self.music_playlist[self.current_track_index]
+            try:
+                pygame.mixer.music.load(current_track)
+                pygame.mixer.music.play(loops=-1 if loop else 0)
+                pygame.mixer.music.set_endevent(pygame.USEREVENT)  # Event, wenn ein Lied endet
+                print(f"Spielt: {current_track}")
+            except pygame.error as e:
+                print(f"Fehler beim Abspielen von {current_track}: {e}")
+        else:
+            print("Playlist ist leer. Keine Musik zum Abspielen.")
+
+    def naechster_track(self):
+        """Wechselt zum nächsten Track in der Playlist."""
+        if self.music_playlist:
+            self.current_track_index = (self.current_track_index + 1) % len(self.music_playlist)
+            self.spiele_musik()
+
+    def vorheriger_track(self):
+        """Wechselt zum vorherigen Track in der Playlist."""
+        if self.music_playlist:
+            self.current_track_index = (self.current_track_index - 1) % len(self.music_playlist)
+            self.spiele_musik()
+
+    def stoppe_musik(self):
+        """Stoppt die aktuell spielende Musik."""
+        pygame.mixer.music.stop()
+
+    def setze_lautstaerke(self, lautstaerke):
+        skaliert = lautstaerke * 1
+        pygame.mixer.music.set_volume(skaliert)
+        for sound in self.sounds.values():
+            sound.set_volume(skaliert)
+
+    def lade_sounds(self, sound_folder):
+        """Lädt alle Sounds aus dem angegebenen Ordner."""
+        try:
+            for file in os.listdir(sound_folder):
+                if file.endswith((".wav", ".mp3")):
+                    sound_name = os.path.splitext(file)[0]
+                    self.sounds[sound_name] = pygame.mixer.Sound(os.path.join(sound_folder, file))
+                    self.sounds[sound_name].set_volume(self.default_volume)
+        except Exception as e:
+            print(f"Fehler beim Laden der Sounds: {e}")
+
+    def spiele_sound(self, sound_name):
+        """Spielt den angegebenen Sound ab."""
+        if sound_name in self.sounds:
+            self.sounds[sound_name].play()
+        else:
+            print(f"Sound '{sound_name}' nicht gefunden.")
