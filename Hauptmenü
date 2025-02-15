@@ -1,0 +1,365 @@
+
+import random
+from SoundManager import SoundManager
+import pygame
+import os
+import sys
+import tkinter as tk
+from tkinter import ttk
+from PIL import Image, ImageTk
+from MinesweeperGUI import MinesweeperGUI
+
+def get_resource_path(relative_path):
+    """Findet den korrekten Pfad für Ressourcen, abhängig davon, ob es sich um eine .exe oder ein Skript handelt."""
+    if hasattr(sys, '_MEIPASS'):
+        # Wenn als .exe ausgeführt
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+class Hauptmenue:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Minesweeper")
+        self.root.geometry("400x400")
+        self.root.configure(bg="#a9a9a9")  # Minesweeper-Feld-Hintergrund
+        self.ausgewaehlte_animation = tk.StringVar(value="Random")
+        self.ausgewaehlter_skill = tk.StringVar(value="")
+        self.erzeuge_hauptmenue()
+        self.sound_manager = SoundManager()
+
+
+        os.environ["SDL_VIDEODRIVER"] = "dummy"
+        pygame.init()
+
+        # SoundManager initialisieren
+        self.sound_manager = SoundManager()
+        self.sound_manager.spiele_musik()
+
+        pygame.mixer.music.set_volume(0.03)
+
+        self.musik_input = 3
+        self.sound_input = 3
+
+        self.event_loop()
+
+
+
+
+    def erzeuge_hauptmenue(self):
+        # Alle Widgets entfernen, um Platz für das Hauptmenü zu schaffen
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.root.update_idletasks()  # Aktualisiere die Fenstergröße vor Layout-Anpassungen
+        self.erstelle_hintergrund()
+
+        # Überschrift
+        ueberschrift = tk.Label(
+            self.root,
+            text="Willkommen zu Minesweeper!",
+            font=("Helvetica", 20, "bold"),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        ueberschrift.place(relx=0.5, y=30, anchor="center")
+
+        # Button-Stil definieren
+        style = ttk.Style()
+        style.configure("TButton", font=("Helvetica", 16), padding=12, background="#3498db", foreground="#000000")
+        style.map("TButton", background=[("active", "#2980b9")])
+
+        # Buttons erstellen
+        spielen_button = ttk.Button(
+            self.root,
+            text="Spielen",
+            command=self.oeffne_schwierigkeitsauswahl
+        )
+        spielen_button.place(relx=0.5, y=120, anchor="center")
+
+        optionen_button = ttk.Button(
+            self.root,
+            text="Optionen",
+            command=self.oeffne_optionen
+        )
+        optionen_button.place(relx=0.5, y=180, anchor="center")
+
+        beenden_button = ttk.Button(
+            self.root,
+            text="Spiel Beenden",
+            command=self.root.quit
+        )
+        beenden_button.place(relx=0.5, y=240, anchor="center")
+
+        credits_label = tk.Label(
+            self.root,
+            text="Minesweeper Project von Daniel Hermes",
+            font=("Helvetica", 10),
+            fg="#000000"  # Schwarze Schrift
+        )
+        credits_label.place(relx=0.5, rely=1.0, anchor="s")
+
+    def erstelle_hintergrund(self):
+        window_width = self.root.winfo_width()
+        window_height = self.root.winfo_height()
+
+        rows, cols = 20, 20  # Anzahl der Felder
+        cell_size = min(window_width // cols, window_height // rows)  # Dynamische Zellengröße
+
+        for i in range(rows):
+            for j in range(cols):
+                status = random.choice(["geschlossen", "offen", "offen"])
+
+                if status == "offen":
+                    feld_inhalt = random.choice(["", str(random.randint(1, 5))])
+                    text_farbe = {
+                        "1": "blue",
+                        "2": "green",
+                        "3": "red",
+                        "4": "yellow",
+                        "5": "orange"
+                    }.get(feld_inhalt, "black")
+                    hintergrund_farbe = "white"
+                else:
+                    feld_inhalt = ""
+                    text_farbe = "black"
+                    hintergrund_farbe = "#d3d3d3" if (i + j) % 2 == 0 else "#a9a9a9"
+
+                feld = tk.Label(
+                    self.root,
+                    text=feld_inhalt,
+                    bg=hintergrund_farbe,
+                    fg=text_farbe,
+                    width=cell_size // 10,
+                    height=cell_size // 20,
+                    font=("Arial", max(cell_size // 15, 8), "bold"),
+                    relief="solid",
+                    bd=1
+                )
+                feld.place(x=j * cell_size, y=i * cell_size)
+
+    def oeffne_schwierigkeitsauswahl(self):
+        self.sound_manager.spiele_sound("click")
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.erstelle_hintergrund()
+        ueberschrift = tk.Label(
+            self.root,
+            text="Wähle die Schwierigkeit:",
+            font=("Helvetica", 20, "bold"),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        ueberschrift.place(relx=0.5, y=30, anchor="center")
+
+        def starte_spiel(zeilen, spalten, bomben):
+            self.sound_manager.spiele_sound("click")
+            for widget in self.root.winfo_children():
+                widget.destroy()
+
+            MinesweeperGUI(self.root, zeilen, spalten, bomben,  self.sound_manager, animation_name=self.ausgewaehlte_animation.get(),
+                           dev_mode=False, skill_name=self.ausgewaehlter_skill.get() or "X-Ray")
+
+        button_leicht = ttk.Button(
+            self.root,
+            text="Leicht",
+            command=lambda: starte_spiel(10, 10, 10)
+        )
+        button_leicht.place(relx=0.5, y=100, anchor="center")
+
+        button_medium = ttk.Button(
+            self.root,
+            text="Medium",
+            command=lambda: starte_spiel(15, 15, 30)
+        )
+        button_medium.place(relx=0.5, y=150, anchor="center")
+
+        button_schwer = ttk.Button(
+            self.root,
+            text="Schwer",
+            command=lambda: starte_spiel(25, 25, 99)
+        )
+        button_schwer.place(relx=0.5, y=200, anchor="center")
+
+        zurueck_button = ttk.Button(
+            self.root,
+            text="Zurück",
+            command=lambda: [self.sound_manager.spiele_sound("click"), self.erzeuge_hauptmenue()]
+        )
+        zurueck_button.place(relx=0.5, y=250, anchor="center")
+
+    def oeffne_optionen(self):
+        # Vorhandene Widgets entfernen
+        self.sound_manager.spiele_sound("click")
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.erstelle_hintergrund()
+
+        # Überschrift
+        ueberschrift = tk.Label(
+            self.root,
+            text="Optionen",
+            font=("Helvetica", 20, "bold"),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        ueberschrift.place(relx=0.5, y=30, anchor="center")
+
+        # Animation-Label
+        animation_label = tk.Label(
+            self.root,
+            text="Wähle die Spielanimation:",
+            font=("Helvetica", 14),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        animation_label.place(relx=0.5, y=60, anchor="center")
+
+        # Dropdown für Animationen
+        animation_dropdown = ttk.Combobox(
+            self.root,
+            textvariable=self.ausgewaehlte_animation,
+            values=["Random", "Center-to-Outside Spiral", "Outside-to-Center Spiral", "Spaltenweise", "Zeilenweise"],
+            state="readonly",
+            font=("Helvetica", 12)
+        )
+        animation_dropdown.place(relx=0.5, y=100, anchor="center")
+
+        # Lautstärkeregler für Musik (weiter links und Label höher gesetzt)
+        musik_label = tk.Label(
+            self.root,
+            text="Musik",
+            font=("Helvetica", 12),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        musik_label.place(relx=0.1, y=40, anchor="center")  # Weiter links und über dem Regler
+
+        musik_regler = tk.Scale(
+            self.root,
+            from_=100,
+            to=0,
+            orient=tk.VERTICAL,
+            command=self.aktualisiere_musik_lautstaerke,  # Direkt die Methode referenzieren
+            bg="#a9a9a9",
+            fg="#000000",
+            length=100
+        )
+        musik_regler.set(self.musik_input)  # Setze den letzten gespeicherten Wert
+        musik_regler.place(relx=0.1, y=120, anchor="center")
+
+        # Lautstärkeregler für Soundeffekte (weiter rechts und Label höher gesetzt)
+        sound_label = tk.Label(
+            self.root,
+            text="Effekte",
+            font=("Helvetica", 12),
+            fg="#000000",
+            bg="#a9a9a9"
+        )
+        sound_label.place(relx=0.9, y=40, anchor="center")  # Weiter rechts und über dem Regler
+
+        sound_regler = tk.Scale(
+            self.root,
+            from_=100,
+            to=0,
+            orient=tk.VERTICAL,
+            command=self.aktualisiere_sound_lautstaerke,  # Direkt die Methode referenzieren
+            bg="#a9a9a9",
+            fg="#000000",
+            length=100
+        )
+        sound_regler.set(self.sound_input)  # Setze den letzten gespeicherten Wert
+        sound_regler.place(relx=0.9, y=120, anchor="center")
+
+        # Zurück-Button
+        zurueck_button = ttk.Button(
+            self.root,
+            text="Zurück zum Hauptmenü",
+            command=lambda: [self.sound_manager.spiele_sound("click"), self.erzeuge_hauptmenue()]
+        )
+        zurueck_button.place(relx=0.5, y=320, anchor="center")
+
+        def skill_auswaehlen(skill_name):
+            self.sound_manager.spiele_sound("click")
+            self.ausgewaehlter_skill.set(skill_name)
+            for box in skill_boxes:
+                box["relief"] = "flat"
+            skill_buttons[skill_name]["relief"] = "solid"
+
+        # Skill-Optionen
+        try:
+            self.skill_images = [
+                ImageTk.PhotoImage(Image.open(get_resource_path("images/xray.jpg")).resize((50, 50))),
+                ImageTk.PhotoImage(Image.open(get_resource_path("images/defuser.jpg")).resize((50, 50))),
+                ImageTk.PhotoImage(Image.open(get_resource_path("images/solver.jpg")).resize((50, 50)))
+            ]
+        except FileNotFoundError as e:
+            print(f"Fehler beim Laden der Bilder: {e}")
+            return
+
+        skill_boxes = []
+        skill_buttons = {}
+        skill_names = ["X-Ray", "Bomb Defuser", "Solver"]
+
+        # Position der Boxen
+        start_x = 75
+        spacing = 100
+
+        for idx, (skill_name, skill_image) in enumerate(zip(skill_names, self.skill_images)):
+            x_pos = start_x + idx * spacing
+
+            box = tk.Label(
+                self.root,
+                image=skill_image,
+                bg="#cccccc",
+                width=60,
+                height=60,
+                relief="flat" if skill_name != "X-Ray" else "solid",
+                bd=2
+            )
+            box.bind("<Button-1>", lambda event, name=skill_name: skill_auswaehlen(name))
+            box.place(x=x_pos, y=200)
+            skill_boxes.append(box)
+            skill_buttons[skill_name] = box
+
+            description = tk.Label(
+                self.root,
+                text=skill_name,
+                font=("Helvetica", 10),
+                fg="#000000",
+                bg="#a9a9a9"
+            )
+            description.place(x=x_pos, y=270)
+
+
+        # Zurück-Button
+        zurueck_button = ttk.Button(
+            self.root,
+            text="Zurück zum Hauptmenü",
+            command=lambda: [self.sound_manager.spiele_sound("click"), self.erzeuge_hauptmenue()]
+        )
+        zurueck_button.place(relx=0.5, y=320, anchor="center")
+
+    def aktualisiere_musik_lautstaerke(self, wert):
+        self.musik_input = int(wert)  # Speichere den Benutzerwert
+        lautstaerke = self.musik_input / 100  # Wert in Bereich 0.0 bis 1.0 umwandeln
+        self.sound_manager.setze_lautstaerke(lautstaerke)  # Lautstärke aktualisieren
+
+    def aktualisiere_sound_lautstaerke(self, wert):
+        self.sound_input = int(wert)  # Speichere den Benutzerwert
+        lautstaerke = self.sound_input / 100  # Wert in Bereich 0.0 bis 1.0 umwandeln
+        for sound in self.sound_manager.sounds.values():
+            sound.set_volume(lautstaerke)
+
+    def event_loop(self):
+        """Überprüft auf Pygame-Ereignisse."""
+        for event in pygame.event.get():
+            if event.type == pygame.USEREVENT:  # Song-Ende-Ereignis
+                self.sound_manager.naechster_track()
+        self.root.after(100, self.event_loop)  # Wiederhole die Überprüfung alle 100 ms
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    Hauptmenue(root)
+    root.mainloop()
