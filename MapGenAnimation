@@ -1,0 +1,170 @@
+import random
+
+class MapGenAnimationen:
+    @staticmethod
+    def random_aufdecken(buttons, root, duration=3000):
+        alle_buttons = [btn for zeile in buttons for btn in zeile if btn is not None]
+        random.shuffle(alle_buttons)
+
+        if not alle_buttons:
+            return
+
+        interval = max(duration / len(alle_buttons), 1)
+
+        def animation():
+            if alle_buttons:
+                button = alle_buttons.pop()
+                button.config(bg="white", relief="raised")
+                root.after(int(interval), animation)
+
+        animation()
+
+    @staticmethod
+    def spiral_order_outside_to_center(zeilen, spalten):
+        top, left = 0, 0
+        bottom, right = zeilen - 1, spalten - 1
+        result = []
+
+        while top <= bottom and left <= right:
+            # Obere Reihe von links nach rechts
+            for col in range(left, right + 1):
+                result.append((top, col))
+            top += 1
+
+            # Rechte Spalte von oben nach unten
+            for row in range(top, bottom + 1):
+                result.append((row, right))
+            right -= 1
+
+            # Untere Reihe von rechts nach links
+            if top <= bottom:
+                for col in range(right, left - 1, -1):
+                    result.append((bottom, col))
+                bottom -= 1
+
+            # Linke Spalte von unten nach oben
+            if left <= right:
+                for row in range(bottom, top - 1, -1):
+                    result.append((row, left))
+                left += 1
+
+        return result  # Reihenfolge für Outside-to-Center korrekt belassen
+
+    @staticmethod
+    def spiral_order_center_to_outside(zeilen, spalten):
+        center_row, center_col = zeilen // 2, spalten // 2
+        result = []
+        visited = set()
+
+        # Start in der Mitte
+        if 0 <= center_row < zeilen and 0 <= center_col < spalten:
+            result.append((center_row, center_col))
+            visited.add((center_row, center_col))
+
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Rechts, Unten, Links, Oben
+        layer = 1
+
+        while len(result) < zeilen * spalten:
+            # Fügt die obere linke Ecke nicht direkt hinzu, sondern erst am Ende
+            row, col = center_row - layer, center_col - layer
+            corners = []
+
+            for dx, dy in directions:
+                for _ in range(layer * 2):
+                    if 0 <= row < zeilen and 0 <= col < spalten and (row, col) not in visited:
+                        if (row, col) == (center_row - layer, center_col - layer):  # obere linke Ecke
+                            corners.append((row, col))  # Verschiebe das Hinzufügen
+                        else:
+                            result.append((row, col))
+                            visited.add((row, col))
+                    row += dx
+                    col += dy
+
+            # Füge die obere linke Ecke erst jetzt hinzu
+            for corner in corners:
+                result.append(corner)
+                visited.add(corner)
+
+            layer += 1  # Nächste Ebene
+
+        return result
+
+    @staticmethod
+    def spiral_aufdecken_center_to_outside(buttons, root, duration=3000):
+        zeilen = len(buttons)
+        spalten = len(buttons[0]) if zeilen > 0 else 0
+
+        # Spiralreihenfolge von der Mitte nach außen generieren
+        alle_positionen = MapGenAnimationen.spiral_order_center_to_outside(zeilen, spalten)
+        interval = max(duration / max(len(alle_positionen), 1), 10)
+
+        def animation():
+            if alle_positionen:
+                z, s = alle_positionen.pop(0)
+                button = buttons[z][s]
+                button.config(bg="white", relief="raised")
+                root.after(int(interval), animation)
+
+        animation()
+
+    @staticmethod
+    def spiral_aufdecken_outside_to_center(buttons, root, duration=3000):
+        zeilen = len(buttons)
+        spalten = len(buttons[0]) if zeilen > 0 else 0
+
+        # Spiralreihenfolge von außen nach innen generieren
+        alle_positionen = MapGenAnimationen.spiral_order_outside_to_center(zeilen, spalten)
+        interval = max(duration / max(len(alle_positionen), 1), 10)
+
+        def animation():
+            if alle_positionen:
+                z, s = alle_positionen.pop(0)
+                button = buttons[z][s]
+                button.config(bg="white", relief="raised")
+                root.after(int(interval), animation)
+
+        animation()
+
+    @staticmethod
+    def spaltenweise_aufdecken(buttons, root, duration=3000):
+        zeilen = len(buttons)
+        spalten = len(buttons[0]) if zeilen > 0 else 0
+
+        alle_positionen = [(z, s) for s in range(spalten) for z in range(zeilen)]
+        interval = max(duration / len(alle_positionen), 1)
+
+        def animation():
+            if alle_positionen:
+                z, s = alle_positionen.pop(0)
+                button = buttons[z][s]
+                button.config(bg="white", relief="raised")
+                root.after(int(interval), animation)
+
+        animation()
+
+    @staticmethod
+    def zeilenweise_aufdecken(buttons, root, duration=3000):
+        zeilen = len(buttons)
+        spalten = len(buttons[0]) if zeilen > 0 else 0
+
+        alle_positionen = [(z, s) for z in range(zeilen) for s in range(spalten)]
+        interval = max(duration / len(alle_positionen), 1)
+
+        def animation():
+            if alle_positionen:
+                z, s = alle_positionen.pop(0)
+                button = buttons[z][s]
+                button.config(bg="white", relief="raised")
+                root.after(int(interval), animation)
+
+        animation()
+
+    @staticmethod
+    def alle_animationen():
+        return {
+            "Random": MapGenAnimationen.random_aufdecken,
+            "Center-to-Outside Spiral": MapGenAnimationen.spiral_aufdecken_center_to_outside,
+            "Outside-to-Center Spiral": MapGenAnimationen.spiral_aufdecken_outside_to_center,
+            "Spaltenweise": MapGenAnimationen.spaltenweise_aufdecken,
+            "Zeilenweise": MapGenAnimationen.zeilenweise_aufdecken,
+        }
