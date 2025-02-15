@@ -1,0 +1,481 @@
+import tkinter as tk
+from Spielfeld import Spielfeld
+from MapGenAnimationen import MapGenAnimationen
+import time
+from Faehigkeiten import Faehigkeiten
+import random
+
+
+
+
+class MinesweeperGUI:
+
+    def __init__(self, root, zeilen, spalten, bomben, sound_manager, animation_name="Random", dev_mode=False, skill_name="X-Ray"):
+        self.spielfeld = Spielfeld(zeilen, spalten, bomben)
+        self.root = root
+        self.buttons = [[None for _ in range(spalten)] for _ in range(zeilen)]
+        self.dev_mode = dev_mode
+        self.faehigkeiten = Faehigkeiten(skill_name)  # Instanz der Fähigkeitenklasse
+        self.startzeit = None
+        self.timer_aktiv = False
+        self.animation_name = animation_name
+        self.mouse_position = None  # Speichert die aktuelle Mausposition in Spielfeld-Koordinaten
+        root.bind("<Motion>", self.aktualisiere_mausposition)  # Event-Bindung für Mausbewegungen
+        root.bind("<space>", self.faehigkeit_aktivieren)  # Fähigkeit aktivieren bei Leertaste
+        self.spielfeld.set_spielende_callback(self.spiel_ende)
+        self.root.bind("<Escape>", self.zurueck_zum_hauptmenue)
+        self.sound_manager = sound_manager
+        self.spielendeabgespielt=False
+        self.ersterzuggemacht=False
+
+
+
+        self.temp_xray_buttons = set()
+
+        self.erzeuge_gui(animation_selection=animation_name)
+
+        # Leertaste für Fähigkeit binden
+        self.root.bind("<space>", self.faehigkeit_aktivieren)
+
+        self.erzeuge_gui(animation_selection=self.animation_name)
+
+        # Mindestgröße und maximale Größe des Fensters festlegen
+        min_width = spalten * 43
+        min_height = zeilen * 30 + 100
+        max_width = spalten * 50
+        max_height = zeilen * 50 + 150
+
+        self.root.minsize(min_width, min_height)
+        self.root.maxsize(max_width, max_height)
+        self.root.update_idletasks()
+
+        self.mache_buttons_unsichtbar()
+        animation_func = MapGenAnimationen.alle_animationen().get(self.animation_name, MapGenAnimationen.random_aufdecken)
+        if animation_func:
+            animation_func(self.buttons, self.root)
+
+        self.aufdeckensounds= ["aufdecken1", "aufdecken2", "aufdecken3", "aufdecken4"]
+
+    def spiel_ende(self):
+        """Wird aufgerufen, wenn das Spiel endet."""
+        if self.spielfeld.spiel_beendet:
+            if self.spielfeld.pruefe_gewinn():
+                self.status_label.config(text="Herzlichen Glückwunsch! Du hast gewonnen!", fg="green")
+                if not self.spielendeabgespielt:
+                    self.sound_manager.spiele_sound("win")
+                    self.spielendeabgespielt = True
+            else:
+                self.status_label.config(text="Du hast eine Bombe getroffen. Spiel verloren!", fg="red")
+                self.sound_manager.spiele_sound("bomb")
+                time.sleep(0.03)
+                self.sound_manager.spiele_sound("loose")
+            self.timer_aktiv = False
+            self.disable_all_buttons()  # Alle Buttons deaktivieren
+            self.aktualisiere_gui()
+
+    def neues_spiel(self):
+        self.ersterzuggemacht = False
+        self.sound_manager.spiele_sound("click")
+        self.spielendeabgespielt = False
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        # Spielfeld und GUI zurücksetzen
+        self.spielfeld = Spielfeld(self.spielfeld.zeilen, self.spielfeld.spalten, self.spielfeld.bomben_anzahl)
+        self.spielfeld.set_spielende_callback(self.spiel_ende)
+
+        self.buttons = [[None for _ in range(self.spielfeld.spalten)] for _ in range(self.spielfeld.zeilen)]
+        self.startzeit = None
+        self.timer_aktiv = False
+
+        # Fähigkeiten zurücksetzen
+        self.faehigkeiten = Faehigkeiten(self.faehigkeiten.skill_name)
+
+        self.erzeuge_gui(animation_selection=self.animation_name)
+        self.mache_buttons_unsichtbar()
+        self.enable_all_buttons()
+
+        animation_func = MapGenAnimationen.alle_animationen().get(self.animation_name,
+                                                                  MapGenAnimationen.random_aufdecken)
+        if animation_func:
+            animation_func(self.buttons, self.root)
+
+    def erzeuge_gui(self, animation_selection='Random'):
+        # Status Frame erstellen
+        status_frame = tk.Frame(self.root, bg="#cccccc", padx=5, pady=5)
+        status_frame.grid(row=0, column=0, columnspan=self.spielfeld.spalten, sticky="we")
+
+        # Dynamische Spaltengewichtung für flexibles Layout
+        self.root.grid_rowconfigure(0, weight=1)
+        for col in range(self.spielfeld.spalten):
+            self.root.grid_columnconfigure(col, weight=1)
+
+        # Timer (links)
+        self.timer_button = tk.Button(
+            status_frame,
+            text="Zeit: 0s",
+            font=("Arial", 12, "bold"),
+            bg="#eeeeee",
+            fg="black",
+            relief="raised",
+            state="disabled"
+        )
+        self.timer_button.grid(row=0, column=0, sticky="w", padx=10)
+
+        # Platzhalter-Spalte zwischen Timer und Restart-Button
+        status_frame.columnconfigure(1, weight=1)
+
+        # Restart-Button (zentral)
+        restart_button = tk.Button(
+            status_frame,
+            text="Neues Spiel",
+            command=self.neues_spiel,
+            font=("Arial", 12, "bold"),
+            bg="#cccccc",
+            fg="black",
+            relief="raised",
+        )
+        restart_button.grid(row=0, column=2, padx=10)
+
+        status_frame.columnconfigure(3, weight=1)
+
+        self.flaggen_button = tk.Button(
+            status_frame,
+            text=f"Flaggen: {self.spielfeld.verbleibende_flaggen()}",
+            font=("Arial", 12, "bold"),
+            bg="#eeeeee",
+            fg="black",
+            relief="raised",
+            state="disabled"
+        )
+        self.flaggen_button.grid(row=0, column=4, sticky="e", padx=10)
+
+        self.status_label = tk.Label(
+            self.root,
+            text="",
+            font=("Arial", 14, "bold"),
+            bg="#aaaaaa",
+            fg="black"
+        )
+        self.status_label.grid(row=1, column=0, columnspan=self.spielfeld.spalten, pady=5)
+
+        # Spielfeld-Buttons dynamisch erstellen
+        for zeile in range(self.spielfeld.zeilen + 2):
+            self.root.grid_rowconfigure(zeile, weight=1)
+        for spalte in range(self.spielfeld.spalten):
+            self.root.grid_columnconfigure(spalte, weight=1)
+
+        # Erstelle die Buttons
+        for zeile in range(self.spielfeld.zeilen):
+            for spalte in range(self.spielfeld.spalten):
+                button = tk.Button(
+                    self.root,
+                    text="",
+                    font=("Arial", 10),
+                    width=3,
+                    height=1,
+                    command=lambda z=zeile, s=spalte: self.aufdecken(z, s)
+                )
+                button.bind("<Button-3>", lambda event, z=zeile, s=spalte: self.markieren(z, s))
+                button.grid(row=zeile + 2, column=spalte, sticky="nsew")  # Kein Padding mehr
+                self.buttons[zeile][spalte] = button
+
+        # Animation anzeigen
+        animation_label = tk.Label(
+            self.root,
+            text=f"Animation: {animation_selection}",
+            font=("Arial", 12),
+            bg="#cccccc",
+            fg="black"
+        )
+        animation_label.grid(row=self.spielfeld.zeilen + 3, column=0, columnspan=self.spielfeld.spalten, sticky="we")
+
+    def mache_buttons_unsichtbar(self):
+        """
+        Setzt die Buttons in den unsichtbaren Zustand (Hintergrundfarbe).
+        """
+        for zeile in self.buttons:
+            for button in zeile:
+                if button:
+                    button.config(bg=self.root.cget("bg"), relief="flat")
+
+    def aktualisiere_timer(self):
+        if self.startzeit and self.timer_aktiv:
+            vergangene_zeit = int(time.time() - self.startzeit)
+            self.timer_button.config(text=f"Zeit: {vergangene_zeit}s")
+            self.root.after(1000, self.aktualisiere_timer)
+
+    def aktualisiere_flaggen_count(self):
+
+        verbleibende_flaggen = self.spielfeld.verbleibende_flaggen()
+        self.flaggen_button.config(text=f"Flaggen: {verbleibende_flaggen}")
+
+    def aufdecken(self, zeile, spalte):
+        """
+        Deckt ein Feld auf und prüft den Gewinnstatus.
+        Wenn Bomben deaktiviert sind, wird keine Verlustmeldung ausgelöst.
+        """
+        if not self.ersterzuggemacht:
+            self.ersterzuggemacht = True
+            # Wenn das erste Feld eine Bombe ist, regeneriere das Spielfeld
+            if self.spielfeld.spielfeld[zeile][spalte] == -1:  # -1 steht für Bombe in der Spielfeld-Klasse
+                self.spielfeld.regeneriere_feld(zeile, spalte)
+
+            # Deck das Feld nach der Regeneration auf
+            self.spielfeld.aufdecken(zeile, spalte)
+            self.aktualisiere_gui()
+            return
+
+        random_sound = random.choice(self.aufdeckensounds)
+        self.sound_manager.spiele_sound(random_sound)
+        if not self.timer_aktiv:
+            self.startzeit = time.time()
+            self.timer_aktiv = True
+            self.aktualisiere_timer()
+
+        # Überprüfen, ob die Bombe deaktiviert ist
+        if (zeile, spalte) in self.spielfeld.deaktivierte_bomben:
+            self.spielfeld.markieren(zeile, spalte)
+            self.buttons[zeile][spalte].config(text="F", bg="green", fg="white", state="disabled")
+            self.aktualisiere_flaggen_count()
+            return
+
+        # Normales Aufdecken des Feldes
+        self.spielfeld.aufdecken(zeile, spalte)
+        self.spielfeld.erkenne_5050_situationen()
+
+        # GUI aktualisieren, um Status sofort zu reflektieren
+        self.aktualisiere_gui()
+
+        # Gewinnprüfung nach jeder Änderung
+        if self.spielfeld.pruefe_gewinn():
+            self.status_label.config(text="Herzlichen Glückwunsch! Du hast gewonnen!", fg="green")
+            self.timer_aktiv = False
+        elif self.spielfeld.spiel_beendet:
+            self.status_label.config(text="Du hast eine Bombe getroffen. Spiel verloren!", fg="#cc3333")
+            self.timer_aktiv = False
+            self.root.update_idletasks()  # **Wichtig**: Erzwingt das sofortige Neuzeichnen
+
+    def markieren(self, zeile, spalte):
+        """Markiert ein Feld oder hebt die Markierung auf."""
+        self.sound_manager.spiele_sound("flag")
+        if self.spielfeld.spieler_sicht[zeile][spalte] in ["_", "F"]:  # Nur geschlossene oder markierte Felder
+            self.spielfeld.markieren(zeile, spalte)
+            # Falls das Feld im X-Ray-Modus sichtbar ist, überschreibe die Anzeige
+            if (zeile, spalte) in self.faehigkeiten.temp_xray_bomben:
+                self.buttons[zeile][spalte].config(
+                    text="F",
+                    bg="red",
+                    fg="white",
+                    relief="raised"
+                )
+            else:
+                self.aktualisiere_gui()
+            self.aktualisiere_flaggen_count()
+
+    def aktualisiere_gui(self):
+        farben = {
+            "1": "blue",
+            "2": "green",
+            "3": "red",
+            "4": "purple",
+            "5": "orange",
+            "6": "black",
+            "7": "black",
+            "8": "black",
+        }
+        for zeile in range(self.spielfeld.zeilen):
+            for spalte in range(self.spielfeld.spalten):
+                button = self.buttons[zeile][spalte]
+                status = self.spielfeld.get_feld_status(zeile, spalte)
+
+                if (zeile, spalte) in self.faehigkeiten.temp_xray_bomben:
+                    button.config(bg="red", text="B", fg="white", relief="sunken")
+                    continue  # Andere Änderungen ignorieren, wenn X-Ray aktiv ist
+
+                if status == "_":
+                    button.config(text="", state="normal", bg="white", fg="black", relief="raised")
+                elif status == "F":
+                    button.config(text="F", state="normal", bg="red", fg="white", relief="raised")
+                elif status == "B":
+                    button.config(text="B", state="normal", bg="red", fg="white", relief="sunken")
+                elif status == "":
+                    button.config(text="", state="normal", bg="#dddddd", fg="black", relief="sunken")
+                elif status.isdigit():
+                    button.config(
+                        text=status,
+                        state="normal",
+                        bg="#dddddd",
+                        fg=farben.get(status, "black"),
+                        font=("Arial", 10, "bold"),
+                        relief="sunken"
+                    )
+
+        # Gewinn- oder Verluststatus aktualisieren
+        if self.spielfeld.pruefe_gewinn():
+            self.status_label.config(text="Herzlichen Glückwunsch! Du hast gewonnen!", fg="green")
+            self.timer_aktiv = False
+            if not self.spielendeabgespielt:
+                self.sound_manager.spiele_sound("win")
+                self.spielendeabgespielt = True
+        elif self.spielfeld.spiel_beendet:
+            self.status_label.config(text="Du hast eine Bombe getroffen. Spiel verloren!", fg="red")
+            self.timer_aktiv = False
+
+    def faehigkeit_aktivieren(self, event=None):
+        """
+        Aktiviert die ausgewählte Fähigkeit und synchronisiert die GUI.
+        """
+        # Spielstatus prüfen
+        if self.spielfeld.spiel_beendet:
+            return
+
+        # Verfügbarkeit prüfen
+        if not self.faehigkeiten.nutze_faehigkeit():
+            self.status_label.config(text="Fähigkeit nicht verfügbar!", fg="red")
+            self.sound_manager.spiele_sound("skill_failed")
+            return
+
+        # Fähigkeit aktivieren
+        if self.faehigkeiten.skill_name == "X-Ray":
+            self.faehigkeiten._xray(self.spielfeld, self.buttons, self.root)
+            self.zeige_faehigkeit_aktiv("X-Ray", 5000)
+            self.sound_manager.spiele_sound("skill_activated")
+        elif self.faehigkeiten.skill_name == "Bomb Defuser":
+            self.sound_manager.spiele_sound("skill_activated")
+            self.faehigkeiten._bomb_defuser(self.spielfeld, self.buttons, self.root, self.aktualisiere_flaggen_count)
+            self.zeige_faehigkeit_aktiv("Bomb Defuser", 10000)
+        elif self.faehigkeiten.skill_name == "Solver" and self.mouse_position:
+            self.sound_manager.spiele_sound("solver")
+            self.faehigkeiten._solver(self.spielfeld, self.buttons, self.mouse_position)
+            self.aktualisiere_gui()
+            self.aktualisiere_flaggen_count()
+
+    def zeige_bomben(self, bomben_positionen):
+        """Zeigt die Bomben auf den Buttons an."""
+        self.temp_xray_buttons.update(bomben_positionen)  # Speichere angezeigte Bomben
+        for zeile, spalte in bomben_positionen:
+            button = self.buttons[zeile][spalte]
+            button.config(bg="red", text="B")  # Bombe sichtbar machen
+
+    def reset_bomben_anzeige(self, bomben_positionen):
+        """Setzt die Bombenanzeige zurück."""
+        for zeile, spalte in bomben_positionen:
+            button = self.buttons[zeile][spalte]
+            status = self.spielfeld.get_feld_status(zeile, spalte)
+
+            # Zustand des Feldes wiederherstellen
+            if status == "_":  # Geschlossenes Feld
+                button.config(bg="SystemButtonFace", text="")
+            elif status == "F":  # Markierte Bombe
+                button.config(bg="white", text="F", fg="red")
+            elif status == "B":  # Aufgedeckte Bombe
+                button.config(bg="red", text="B")
+            else:  # Aufgedecktes Feld mit Zahl
+                button.config(bg="white", text=status, fg="black")
+
+        self.temp_xray_buttons.clear()  # X-Ray-Liste leeren
+
+    def aktualisiere_mausposition(self, event):
+        """
+        Aktualisiert die Mausposition basierend auf dem Button, über dem sich die Maus befindet.
+        """
+        for zeile in range(len(self.buttons)):
+            for spalte in range(len(self.buttons[0])):
+                button = self.buttons[zeile][spalte]
+                if button.winfo_containing(event.x_root, event.y_root) == button:
+                    self.mouse_position = (zeile, spalte)
+                    return
+
+    def aktualisiere_gewinnstatus(self):
+        """
+        Prüft, ob das Spiel gewonnen wurde, und aktualisiert die GUI entsprechend.
+        """
+        if self.spielfeld.pruefe_gewinn():
+            self.spielfeld.spiel_beendet = True
+            self.status_label.config(text="Herzlichen Glückwunsch! Du hast gewonnen!", fg="green")
+            self.timer_aktiv = False
+            print("Spiel gewonnen! Alle Felder wurden erfolgreich aufgedeckt oder markiert.")
+
+    def debug_status(self):
+        """
+        Gibt den internen Status des Spielfelds und der GUI aus.
+        """
+        print("Interner Spielfeldstatus:")
+        for zeile in self.spielfeld.spieler_sicht:
+            print(" ".join(zeile))
+
+        print("\nGUI-Status:")
+        for zeile in range(len(self.buttons)):
+            status_zeile = []
+            for spalte in range(len(self.buttons[zeile])):
+                button = self.buttons[zeile][spalte]
+                status_zeile.append(button["text"])
+            print(" ".join(status_zeile))
+
+    def zeige_faehigkeit_aktiv(self, faehigkeit_name, dauer):
+        """
+        Zeigt den Status der aktiven Fähigkeit an und entfernt die Nachricht nach Ablauf.
+        """
+        self.status_label.config(text=f"{faehigkeit_name} AKTIV", fg="blue")
+
+        def deaktivieren():
+            # Rücksetzen des Status, wenn das Spiel nicht gewonnen/verloren ist
+            if not self.spielfeld.spiel_beendet:
+                self.sound_manager.spiele_sound("skillover")
+                self.status_label.config(text="", fg="black")
+
+        self.root.after(dauer, deaktivieren)  # Entfernt die Nachricht nach der Dauer
+
+    def zurueck_zum_hauptmenue(self):
+        """Beendet das aktuelle Spiel und kehrt zum Hauptmenü zurück."""
+        # Timer stoppen, falls aktiv
+        self.timer_aktiv = False
+        self.sound_manager.spiele_sound("click")
+
+        # Alle Widgets des aktuellen Fensters entfernen
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        # Fenstergröße für das Hauptmenü festlegen
+        self.root.geometry("400x400")  # Größe des Hauptmenüs
+        self.root.minsize(400, 400)
+        self.root.maxsize(400, 400)
+
+        # Hauptmenü laden
+        from Hauptmenü import Hauptmenue  # Verhindert zirkuläre Importe
+        Hauptmenue(self.root)  # Zeigt das Hauptmenü an
+
+    def disable_all_buttons(self):
+        """Deaktiviert alle Buttons nach Spielende."""
+        for zeile in self.buttons:
+            for button in zeile:
+                if button:  # Sicherstellen, dass der Button existiert
+                    button.config(state="disabled")
+
+    def enable_all_buttons(self):
+        """Aktiviert alle Buttons für ein neues Spiel."""
+        for zeile in self.buttons:
+            for button in zeile:
+                if button:  # Sicherstellen, dass der Button existiert
+                    button.config(state="normal")
+
+    def regeneriere_feld(self, zeile, spalte):
+        # Entferne die Bombe an der aktuellen Position
+        if self.spielfeld[zeile][spalte] == "B":
+            self.spielfeld[zeile][spalte] = 0
+            self.bomben_anzahl -= 1
+
+        # Finde eine neue Position für die Bombe
+        while True:
+            neue_zeile = random.randint(0, self.zeilen - 1)
+            neue_spalte = random.randint(0, self.spalten - 1)
+            if self.spielfeld[neue_zeile][neue_spalte] != "B" and (neue_zeile != zeile or neue_spalte != spalte):
+                self.spielfeld[neue_zeile][neue_spalte] = "B"
+                self.bomben_anzahl += 1
+                break
+
+        # Aktualisiere die Nachbarschaftszahlen
+        self.berechne_nachbarschaftszahlen()
+
+
