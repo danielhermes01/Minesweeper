@@ -1,0 +1,232 @@
+import random
+
+class Spielfeld:
+    def __init__(self, zeilen, spalten, bomben_anzahl):
+        self.zeilen = zeilen
+        self.spalten = spalten
+        self.bomben_anzahl = bomben_anzahl
+        self.spielfeld = [[0 for _ in range(spalten)] for _ in range(zeilen)]
+        self.spiel_beendet = False
+        self.spieler_sicht = [["_" for _ in range(spalten)] for _ in range(zeilen)]
+        self.flaggen_anzahl = 0
+        self.deaktivierte_bomben = set()
+        self._platziere_bomben()
+        self._berechne_zahlen()
+        self.temp_markierungen = set()
+        self.bomberman_aktiv = False
+        self.spielende_callback = None  # Callback für Spielende
+
+    def _platziere_bomben(self):
+        platzierte_bomben = 0
+        while platzierte_bomben < self.bomben_anzahl:
+            zeile = random.randint(0, self.zeilen - 1)
+            spalte = random.randint(0, self.spalten - 1)
+            if self.spielfeld[zeile][spalte] != -1:
+                self.spielfeld[zeile][spalte] = -1
+                platzierte_bomben += 1
+
+    def _berechne_zahlen(self):
+        for zeile in range(self.zeilen):
+            for spalte in range(self.spalten):
+                if self.spielfeld[zeile][spalte] == -1:
+                    continue
+                self.spielfeld[zeile][spalte] = self._zähle_nahe_bomben(zeile, spalte)
+
+    def _zähle_nahe_bomben(self, zeile, spalte):
+        richtungen = [(-1, -1), (-1, 0), (-1, 1), (1, -1), (1, 0), (1, 1), (0, -1), (0, 1)]
+        anzahl = 0
+        for dz, ds in richtungen:
+            z = zeile + dz
+            s = spalte + ds
+            if 0 <= z < self.zeilen and 0 <= s < self.spalten and self.spielfeld[z][s] == -1:
+                anzahl += 1
+        return anzahl
+
+    def aufdecken(self, zeile, spalte):
+
+        # Bereits geöffnet oder markiert
+        if self.spieler_sicht[zeile][spalte] not in ["_", " "]:
+            return
+
+        # Überprüfen, ob die Bombe deaktiviert ist
+        if (zeile, spalte) in self.deaktivierte_bomben:
+            self.markieren(zeile, spalte)
+            return
+
+        # Normale Logik: Prüfen, ob Bombe getroffen wurde
+        if self.spielfeld[zeile][spalte] == -1:
+            self.spiel_beendet = True
+            self._zeige_alle_bomben()
+            return
+
+        # Aufdecken des Feldes
+        feldwert = self.spielfeld[zeile][spalte]
+        if feldwert == 0:  # Leeres Feld
+            self._aufdecken_leere_felder(zeile, spalte)
+        else:  # Zahlenfeld
+            self.spieler_sicht[zeile][spalte] = str(feldwert)
+
+
+    def sind_alle_markierungen_korrekt(self):
+        for zeile in range(self.zeilen):
+            for spalte in range(self.spalten):
+                if self.spieler_sicht[zeile][spalte] == "F" and self.spielfeld[zeile][spalte] != -1:
+                    return False
+                if self.spielfeld[zeile][spalte] == -1 and self.spieler_sicht[zeile][spalte] != "F":
+                    return False
+        return True
+
+    def _aufdecken_leere_felder(self, zeile, spalte):
+        """
+        Deckt alle zusammenhängenden leeren Felder sowie deren Nachbarn auf.
+        """
+        stack = [(zeile, spalte)]
+        besucht = set()
+
+        while stack:
+            z, s = stack.pop()
+            if (z, s) in besucht or not (0 <= z < self.zeilen and 0 <= s < self.spalten):
+                continue
+            besucht.add((z, s))
+
+            # Aufdecken des aktuellen Feldes
+            feldwert = self.spielfeld[z][s]
+            self.spieler_sicht[z][s] = "" if feldwert == 0 else str(feldwert)
+
+            # Nur für leere Felder Nachbarn hinzufügen
+            if feldwert == 0:
+                richtungen = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+                for dz, ds in richtungen:
+                    nz, ns = z + dz, s + ds
+                    if 0 <= nz < self.zeilen and 0 <= ns < self.spalten and (nz, ns) not in besucht:
+                        stack.append((nz, ns))
+
+    def markieren(self, zeile, spalte):
+        if not (0 <= zeile < self.zeilen and 0 <= spalte < self.spalten):
+            return
+
+        vorheriger_status = self.spieler_sicht[zeile][spalte]
+        if vorheriger_status == "_":  # Geschlossenes Feld
+            self.spieler_sicht[zeile][spalte] = "F"
+            self.flaggen_anzahl += 1
+        elif vorheriger_status == "F":  # Bereits markiertes Feld
+            self.spieler_sicht[zeile][spalte] = "_"
+            self.flaggen_anzahl -= 1
+
+        # Gewinnprüfung nach jeder Markierung
+        if self.pruefe_gewinn():
+            print("Spiel gewonnen!")
+
+    def pruefe_gewinn(self):
+        """
+        Überprüft, ob das Spiel gewonnen wurde.
+        """
+        for zeile in range(self.zeilen):
+            for spalte in range(self.spalten):
+                feldwert = self.spielfeld[zeile][spalte]
+                sichtwert = self.spieler_sicht[zeile][spalte]
+
+                # Bombe: Muss korrekt markiert sein
+                if feldwert == -1 and sichtwert != "F":
+                    return False
+
+                # Kein Bombe: Muss aufgedeckt sein
+                if feldwert != -1 and sichtwert in ["_", "F"]:
+                    return False
+
+        # Wenn alle Bedingungen erfüllt sind, ist das Spiel gewonnen
+        self.spiel_beendet = True
+        return True
+
+    def get_feld_status(self, zeile, spalte):
+        return self.spieler_sicht[zeile][spalte]
+
+    def verbleibende_flaggen(self):
+        markierte_bomben = sum(
+            1 for zeile in range(self.zeilen) for spalte in range(self.spalten)
+            if self.spieler_sicht[zeile][spalte] == "F"
+        )
+        return self.bomben_anzahl - markierte_bomben
+
+    def erkenne_5050_situationen(self):
+        for zeile in range(self.zeilen):
+            for spalte in range(self.spalten):
+                if not self.spieler_sicht[zeile][spalte].isdigit():
+                    continue
+
+                zahl = int(self.spieler_sicht[zeile][spalte])
+                unaufgedeckte_nachbarn = []
+                markierte_bomben = 0
+
+                # Nachbarn identifizieren
+                richtungen = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+                for dz, ds in richtungen:
+                    nz, ns = zeile + dz, spalte + ds
+                    if 0 <= nz < self.zeilen and 0 <= ns < self.spalten:
+                        if self.spieler_sicht[nz][ns] == "_":
+                            unaufgedeckte_nachbarn.append((nz, ns))
+                        elif self.spieler_sicht[nz][ns] == "F":
+                            markierte_bomben += 1
+
+                verbleibende_bomben = zahl - markierte_bomben
+
+                if len(unaufgedeckte_nachbarn) == 2 and verbleibende_bomben == 1:
+                    konflikt = False
+                    for feld in unaufgedeckte_nachbarn:
+                        for dz, ds in richtungen:
+                            nz, ns = feld[0] + dz, feld[1] + ds
+                            if 0 <= nz < self.zeilen and 0 <= ns < self.spalten:
+                                if self.spieler_sicht[nz][ns].isdigit() and (nz, ns) != (zeile, spalte):
+                                    konflikt = True
+                                    break
+                        if konflikt:
+                            break
+
+                    if not konflikt:
+                        sicheres_feld = unaufgedeckte_nachbarn[0]
+                        self.aufdecken(sicheres_feld[0], sicheres_feld[1])
+                        return True
+        return False
+
+    def markiere_als_aufgedeckt(self, zeile, spalte):
+        """
+        Markiert ein Feld explizit als aufgedeckt, ohne die normale Spiellogik zu beeinflussen.
+        """
+        if self.spieler_sicht[zeile][spalte] == "_":  # Nur geschlossene Felder behandeln
+            feldwert = self.spielfeld[zeile][spalte]
+            self.spieler_sicht[zeile][spalte] = str(feldwert) if feldwert != 0 else " "
+
+    def set_spielende_callback(self, callback):
+        """Registriert eine Callback-Funktion, die bei Spielende aufgerufen wird."""
+        self.spielende_callback = callback
+
+    def _zeige_alle_bomben(self):
+        for zeile in range(self.zeilen):
+            for spalte in range(self.spalten):
+                if self.spielfeld[zeile][spalte] == -1 and self.spieler_sicht[zeile][spalte] != "F":
+                    self.spieler_sicht[zeile][spalte] = "B"
+        if self.spielende_callback:
+            self.spielende_callback()  # Callback aufrufen, wenn das Spiel endet
+
+    def regeneriere_feld(self, zeile, spalte):
+        """
+        Regeneriert das Spielfeld so, dass das angeklickte Feld keine Bombe enthält.
+        """
+        # Entferne die Bombe am aktuellen Feld
+        if self.spielfeld[zeile][spalte] == -1:
+            self.spielfeld[zeile][spalte] = 0
+            self.bomben_anzahl -= 1
+
+        # Finde eine neue Position für die Bombe
+        while True:
+            neue_zeile = random.randint(0, self.zeilen - 1)
+            neue_spalte = random.randint(0, self.spalten - 1)
+
+            # Überprüfe, ob das neue Feld gültig ist
+            if self.spielfeld[neue_zeile][neue_spalte] != -1 and self.spieler_sicht[neue_zeile][neue_spalte] == "_":
+                self.spielfeld[neue_zeile][neue_spalte] = -1
+                self.bomben_anzahl += 1
+                break
+
+        # Aktualisiere die Nachbarschaftszahlen
+        self._berechne_zahlen()
